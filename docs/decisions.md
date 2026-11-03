@@ -1,0 +1,49 @@
+# Decision record
+
+Choices made where the paper is ambiguous or inconsistent. Each can be revisited; tests
+should cite the number below.
+
+## 1. Worked-example typo
+The coupling list shows `score([B],[C]) = 0.5`, but the merge arithmetic uses `0.9`.
+Only `0.9` reproduces the paper's printed results (0.425 and Ex = 0.7125).
+**Decision:** use the arithmetic's numbers for the test vector; treat the list entry as a typo.
+
+## 2. Neighbor threshold
+The text removes users "larger than mean minus one standard deviation"; the pseudocode
+keeps members "whose z-score is smaller than Z". Read literally these differ in sign
+and direction.
+**Decision:** keep `d <= mean - std` (z-score <= -1), the stated intent of keeping only
+significantly close users. Equation (1) then uses `theta = mean - std`.
+
+## 3. Mutual acceptance rule
+The prose describes requests accepted only when the sender is at the top of the
+receiver's list. The coupling-list formulation instead evaluates every linked pair and
+merges by the average opinion.
+**Decision:** the coupling list is the operative algorithm; the prose is intuition.
+
+## 4. Member-pair accounting for merged opinions
+The paper shows the merged opinion in an example but not the general rule.
+**Decision:** the opinion of `X` about `Y` accumulates one interaction per member pair
+`(x, y)`: positive with `c_x(y)` when `y` is a candidate of `x`, otherwise hostile with
+`lambda`; prior `w = 2` is counted once. This reproduces the example. A cluster pair is
+linked when at least one member pair has a candidate entry in either direction.
+To keep merging cheap, store `(r, s, w-2)` sums per direction and add them on merge
+instead of iterating member pairs.
+
+## 5. One-sided pairs
+If `B` is a candidate of `A` but `A` is not a candidate of `B`, `B`'s opinion of `A` is
+a single negative interaction (eq. 7). Default `lambda = 0.5`, `a = 0.5`.
+
+## 6. Degenerate cases (implementation choices, not in the paper)
+* `theta == d_min` (all neighbor distances equal): give every neighbor score 1.
+* No neighbors for a vector: it makes no invitations; it may still be chosen by others.
+* Duplicate points (distance 0): treated as ordinary neighbors.
+* Empty vectors under Jaccard: distance 0 between two empty vectors is ambiguous;
+  define as 1 (maximally distant) so they never cluster by absence of data. Document in
+  the distance module.
+* `n < 2`: every point is its own cluster.
+
+## 7. Small-cluster post-processing
+The paper drops clusters with fewer than 5 users in its K-means experiments only.
+**Decision:** not part of Mutual Vote; provide as an optional utility in the evaluation
+module (issue #17).
