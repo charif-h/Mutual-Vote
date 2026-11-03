@@ -57,6 +57,7 @@ def test_get_and_set_params() -> None:
         "chunk_size": 1024,
         "hostility": 0.2,
         "metric": "jaccard",
+        "verbose": False,
     }
     assert est.set_params(hostility=0.7) is est
     assert est.hostility == 0.7

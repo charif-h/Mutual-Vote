@@ -19,7 +19,8 @@ classifiers = [
 
 [project.optional-dependencies]
 sklearn = ["scikit-learn>=1.0"]
-dev = ["pytest>=7", "hypothesis>=6", "ruff>=0.5", "mypy>=1.8", "pre-commit>=3", "scikit-learn>=1.0"]
+progress = ["tqdm>=4.40"]
+dev = ["pytest>=7", "hypothesis>=6", "ruff>=0.5", "mypy>=1.8", "pre-commit>=3", "scikit-learn>=1.0", "tqdm>=4.40"]
 
 [project.scripts]
 mutualvote = "mutualvote.cli:main"
@@ -47,5 +48,5 @@ module = ["scipy", "scipy.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["sklearn", "sklearn.*"]
+module = ["sklearn", "sklearn.*", "tqdm", "tqdm.*"]
 ignore_missing_imports = true

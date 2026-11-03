@@ -49,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--base-rate", type=float, default=0.5, help="subjective-logic base rate")
     c.add_argument("--chunk-size", type=int, default=1024, help="distance rows computed at a time")
     c.add_argument("--delimiter", help="text-file delimiter (default: ',' or tab for .tsv)")
+    c.add_argument(
+        "-v", "--verbose", action="store_true", help="report progress on stderr (tqdm if installed)"
+    )
     return parser
 
 
@@ -61,6 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_rate=args.base_rate,
             metric=args.metric,
             chunk_size=args.chunk_size,
+            verbose=args.verbose,
         ).fit(x)
     except (OSError, ValueError) as exc:
         print(f"mutualvote: error: {exc}", file=sys.stderr)
