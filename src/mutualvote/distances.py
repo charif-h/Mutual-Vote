@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 from scipy import sparse
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import cdist, pdist, squareform
 
 FloatArray = npt.NDArray[np.float64]
 
@@ -54,3 +55,45 @@ def pairwise_distances(x: Any, metric: str = "jaccard") -> FloatArray:
     if dense.shape[0] < 2:
         return np.zeros((dense.shape[0], dense.shape[0]))
     return np.asarray(squareform(pdist(dense, metric=metric)), dtype=np.float64)
+
+
+def _check_chunk_size(chunk_size: int) -> None:
+    if not isinstance(chunk_size, (int, np.integer)) or chunk_size < 1:
+        raise ValueError(f"chunk_size must be a positive integer, got {chunk_size!r}")
+
+
+def distance_blocks(
+    x: Any, metric: str = "jaccard", chunk_size: int = 1024
+) -> Iterator[tuple[int, FloatArray]]:
+    """Yield ``(first_row, block)`` row blocks of the distance matrix, ``chunk_size`` rows each.
+
+    Same values as :func:`pairwise_distances` but with at most ``chunk_size x n`` distances
+    in memory at a time.
+    """
+    _check_chunk_size(chunk_size)
+    if metric == "precomputed":
+        d = pairwise_distances(x, metric)
+        for start in range(0, d.shape[0], chunk_size):
+            yield start, d[start : start + chunk_size]
+        return
+    if metric == "jaccard":
+        m = sparse.csr_matrix(x)
+        m.data = np.ones_like(m.data, dtype=np.float64)
+        m.eliminate_zeros()
+        mt = m.T.tocsr()
+        sizes = np.asarray(m.sum(axis=1), dtype=np.float64).ravel()
+        n = m.shape[0]
+        for start in range(0, n, chunk_size):
+            stop = min(start + chunk_size, n)
+            inter = (m[start:stop] @ mt).toarray().astype(np.float64)
+            union = sizes[start:stop, None] + sizes[None, :] - inter
+            with np.errstate(divide="ignore", invalid="ignore"):
+                block = np.where(union > 0, 1.0 - inter / union, 1.0)
+            block[np.arange(stop - start), np.arange(start, stop)] = 0.0
+            yield start, np.asarray(block, dtype=np.float64)
+        return
+    dense = x.toarray() if sparse.issparse(x) else np.asarray(x)
+    if dense.ndim != 2:
+        raise ValueError("expected a 2-D array")
+    for start in range(0, dense.shape[0], chunk_size):
+        yield start, np.asarray(cdist(dense[start : start + chunk_size], dense, metric=metric))

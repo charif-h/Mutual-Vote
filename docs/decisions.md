@@ -84,3 +84,13 @@ cleanly while sparser groups split. Treating a missing link between two clusters
 hostile interaction (instead of one per member pair) gave 20-23 clusters, so the member-pair
 rule (#4) is not the main cause. **Decision:** keep #4; fragmentation is consistent with
 the paper's reported behaviour.
+
+## 13. No neighbor cap (rejected)
+Candidate pairs grow roughly with n^2, so a cap on neighbors per vector looked like an
+easy way to bound time and memory. It was implemented and measured, then **removed**:
+on 10,000 synthetic vectors (20 groups of ~500) the uncapped algorithm recovers the groups
+(ARI 1.000, 86 s), but keeping only the 200 closest candidates gives 628 clusters
+(ARI 0.066) and 50 gives 1956 clusters (ARI 0.018). Truncating makes most candidate links
+one-sided, and a missing opinion counts as hostile, so clusters fragment.
+**Decision:** no `max_neighbors`; scale through the faster merge loop and chunked distance
+computation instead (docs/scaling.md).

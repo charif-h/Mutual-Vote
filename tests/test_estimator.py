@@ -52,7 +52,12 @@ def test_empty_input() -> None:
 
 def test_get_and_set_params() -> None:
     est = MutualVote(hostility=0.2)
-    assert est.get_params() == {"base_rate": 0.5, "hostility": 0.2, "metric": "jaccard"}
+    assert est.get_params() == {
+        "base_rate": 0.5,
+        "chunk_size": 1024,
+        "hostility": 0.2,
+        "metric": "jaccard",
+    }
     assert est.set_params(hostility=0.7) is est
     assert est.hostility == 0.7
     with pytest.raises(ValueError):
@@ -60,7 +65,14 @@ def test_get_and_set_params() -> None:
 
 
 @pytest.mark.parametrize(
-    "kwargs", [{"hostility": -0.1}, {"hostility": 1.5}, {"base_rate": 2}, {"metric": 3}]
+    "kwargs",
+    [
+        {"hostility": -0.1},
+        {"hostility": 1.5},
+        {"base_rate": 2},
+        {"metric": 3},
+        {"chunk_size": 0},
+    ],
 )
 def test_invalid_parameters(kwargs: dict[str, object]) -> None:
     with pytest.raises(ValueError):

@@ -12,6 +12,22 @@ IntArray = npt.NDArray[np.intp]
 TOLERANCE = 1e-12
 
 
+def row_threshold(row: FloatArray, u: int) -> float:
+    """``theta_u`` for one vector, given its full distance row (including itself)."""
+    if row.shape[0] < 2:
+        return float("nan")
+    others = np.delete(row, u)
+    return float(others.mean() - others.std())
+
+
+def row_neighbors(row: FloatArray, u: int, theta: float) -> IntArray:
+    """Indices ``v != u`` with ``d(u, v) <= theta``, by increasing distance (ties by index)."""
+    idx = np.flatnonzero(row <= theta + TOLERANCE)
+    idx = idx[idx != u]
+    order = np.lexsort((idx, row[idx]))
+    return np.asarray(idx[order], dtype=np.intp)
+
+
 def distance_thresholds(dist: FloatArray) -> FloatArray:
     """Return ``theta_u = mean(D(u)) - std(D(u))`` for every vector.
 
@@ -37,11 +53,4 @@ def select_neighbors(dist: FloatArray) -> list[IntArray]:
     if n < 2:
         return [np.empty(0, dtype=np.intp) for _ in range(n)]
     theta = distance_thresholds(dist)
-    result: list[IntArray] = []
-    for u in range(n):
-        row = dist[u]
-        idx = np.flatnonzero(row <= theta[u] + TOLERANCE)
-        idx = idx[idx != u]
-        order = np.lexsort((idx, row[idx]))
-        result.append(idx[order].astype(np.intp))
-    return result
+    return [row_neighbors(dist[u], u, float(theta[u])) for u in range(n)]

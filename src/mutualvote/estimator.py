@@ -32,6 +32,9 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
         ``"jaccard"`` for binary data (dense or scipy sparse), ``"precomputed"`` if ``X`` is
         a square distance matrix, or any metric of :func:`scipy.spatial.distance.pdist`.
         With ``"jaccard"``, rows without data become singleton clusters.
+    chunk_size : int, default=1024
+        Number of rows of the distance matrix computed at a time. Affects memory only,
+        never the result.
 
     Attributes
     ----------
@@ -61,10 +64,12 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
         hostility: float = 0.5,
         base_rate: float = 0.5,
         metric: str = "jaccard",
+        chunk_size: int = 1024,
     ) -> None:
         self.hostility = hostility
         self.base_rate = base_rate
         self.metric = metric
+        self.chunk_size = chunk_size
 
     def _check_params(self) -> None:
         for name in ("hostility", "base_rate"):
@@ -73,6 +78,8 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
                 raise ValueError(f"{name} must be a number in [0, 1], got {value!r}")
         if not isinstance(self.metric, str):
             raise ValueError(f"metric must be a string, got {self.metric!r}")
+        if not isinstance(self.chunk_size, int) or self.chunk_size < 1:
+            raise ValueError(f"chunk_size must be a positive int, got {self.chunk_size!r}")
 
     def fit(self, X: Any, y: Any = None) -> MutualVote:  # noqa: N803
         """Cluster ``X`` (``n_samples x n_features``, or ``n x n`` if precomputed).
@@ -81,7 +88,11 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
         """
         self._check_params()
         self.labels_ = cluster(
-            X, metric=self.metric, hostility=self.hostility, base_rate=self.base_rate
+            X,
+            metric=self.metric,
+            hostility=self.hostility,
+            base_rate=self.base_rate,
+            chunk_size=self.chunk_size,
         )
         self.n_clusters_ = int(self.labels_.max()) + 1 if self.labels_.size else 0
         if self.metric != "precomputed":

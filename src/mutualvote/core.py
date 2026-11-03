@@ -8,12 +8,17 @@ from collections.abc import Sequence
 import numpy as np
 import numpy.typing as npt
 
-from .opinion import Opinion
-
 IntArray = npt.NDArray[np.intp]
 
+#: Non-informative prior weight of a fresh opinion (see ``mutualvote.opinion``).
+_PRIOR_W = 2.0
 
-def _validate(candidates: Sequence[dict[int, float]]) -> None:
+
+def _validate(candidates: Sequence[dict[int, float]], hostility: float, base_rate: float) -> None:
+    if not 0.0 <= hostility <= 1.0:
+        raise ValueError("hostility must be in [0, 1]")
+    if not 0.0 <= base_rate <= 1.0:
+        raise ValueError("base_rate must be in [0, 1]")
     n = len(candidates)
     for u, cands in enumerate(candidates):
         for v, c in cands.items():
@@ -39,21 +44,28 @@ def merge_clusters(
     Implementation: a max-heap with lazy deletion (cluster ids are never reused, so an
     entry is valid iff both of its clusters are still alive) and per-cluster adjacency
     dicts, so a merge costs time proportional to the degree of the merged clusters.
-    Ties are broken by cluster id. Labels are ``0..k-1`` numbered by smallest member index.
+    Opinions are plain ``(r, s, w)`` tuples with the score of
+    :class:`mutualvote.opinion.Opinion` computed inline, because this loop dominates the
+    running time. Ties are broken by cluster id. Labels are ``0..k-1`` numbered by smallest
+    member index.
     """
-    _validate(candidates)
+    _validate(candidates, hostility, base_rate)
     n = len(candidates)
     if n == 0:
         return np.empty(0, dtype=np.intp)
 
-    prior = Opinion(a=base_rate)
+    lam = hostility
+    a = base_rate
+    one_minus_lam = 1.0 - lam
     members: dict[int, list[int]] = {i: [i] for i in range(n)}
-    # op[x][y] = opinion of cluster x about cluster y (present iff the pair is linked)
-    op: dict[int, dict[int, Opinion]] = {i: {} for i in range(n)}
+    # op[x][y] = (r, s, w) opinion of cluster x about cluster y (present iff linked)
+    op: dict[int, dict[int, tuple[float, float, float]]] = {i: {} for i in range(n)}
 
-    def interaction(x: int, y: int) -> Opinion:
+    def interaction(x: int, y: int) -> tuple[float, float, float]:
         c = candidates[x].get(y)
-        return prior.hostile(hostility, 1) if c is None else prior.positive(c)
+        if c is None:
+            return (0.0, lam, _PRIOR_W + one_minus_lam)
+        return (c, 0.0, _PRIOR_W + (1.0 - c))
 
     for x in range(n):
         for y in candidates[x]:
@@ -63,19 +75,14 @@ def merge_clusters(
 
     heap: list[tuple[float, int, int]] = []
     for x in range(n):
-        for y in op[x]:
+        ox = op[x]
+        for y, (r1, s1, w1) in ox.items():
             if x < y:
-                s = (op[x][y].score() + op[y][x].score()) / 2.0
-                if s >= 0.0:
-                    heap.append((-s, x, y))
+                r2, s2, w2 = op[y][x]
+                mean = (r1 + a * w1) / (r1 + s1 + w1) + (r2 + a * w2) / (r2 + s2 + w2) - 1.0
+                if mean >= 0.0:
+                    heap.append((-mean, x, y))
     heapq.heapify(heap)
-
-    def about(a: int, b: int) -> Opinion:
-        """Opinion of ``a`` about ``b``; unlinked pairs are fully hostile."""
-        found = op[a].get(b)
-        if found is not None:
-            return found
-        return prior.hostile(hostility, len(members[a]) * len(members[b]))
 
     next_id = n
     while heap:
@@ -84,18 +91,39 @@ def merge_clusters(
             continue  # stale entry: one of the clusters was merged away
         z = next_id
         next_id += 1
-        op[z] = {}
-        for w in (op[x].keys() | op[y].keys()) - {x, y}:
-            z_to_w = about(x, w).combine(about(y, w))
-            w_to_z = about(w, x).combine(about(w, y))
-            op[w].pop(x, None)
-            op[w].pop(y, None)
-            op[z][w] = z_to_w
-            op[w][z] = w_to_z
-            s = (z_to_w.score() + w_to_z.score()) / 2.0
-            if s >= 0.0:
-                heapq.heappush(heap, (-s, w, z))
-        big, small = (x, y) if len(members[x]) >= len(members[y]) else (y, x)
+        ox, oy = op[x], op[y]
+        size_x, size_y = len(members[x]), len(members[y])
+        oz: dict[int, tuple[float, float, float]] = {}
+        op[z] = oz
+        for w in (ox.keys() | oy.keys()) - {x, y}:
+            ow = op[w]
+            size_w = len(members[w])
+            # opinion of z about w: sum of x's and y's opinions (hostile if not linked)
+            p = ox.get(w)
+            if p is None:
+                h = size_x * size_w
+                p = (0.0, lam * h, _PRIOR_W + one_minus_lam * h)
+            q = oy.get(w)
+            if q is None:
+                h = size_y * size_w
+                q = (0.0, lam * h, _PRIOR_W + one_minus_lam * h)
+            r1, s1, w1 = p[0] + q[0], p[1] + q[1], p[2] + q[2] - _PRIOR_W
+            # opinion of w about z
+            p = ow.pop(x, None)
+            if p is None:
+                h = size_x * size_w
+                p = (0.0, lam * h, _PRIOR_W + one_minus_lam * h)
+            q = ow.pop(y, None)
+            if q is None:
+                h = size_y * size_w
+                q = (0.0, lam * h, _PRIOR_W + one_minus_lam * h)
+            r2, s2, w2 = p[0] + q[0], p[1] + q[1], p[2] + q[2] - _PRIOR_W
+            oz[w] = (r1, s1, w1)
+            ow[z] = (r2, s2, w2)
+            mean = (r1 + a * w1) / (r1 + s1 + w1) + (r2 + a * w2) / (r2 + s2 + w2) - 1.0
+            if mean >= 0.0:
+                heapq.heappush(heap, (-mean, w, z))
+        big, small = (x, y) if size_x >= size_y else (y, x)
         merged = members.pop(big)
         merged.extend(members.pop(small))
         members[z] = merged
