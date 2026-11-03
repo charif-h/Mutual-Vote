@@ -21,11 +21,15 @@ classifiers = [
 sklearn = ["scikit-learn>=1.0"]
 dev = ["pytest>=7", "hypothesis>=6", "ruff>=0.5", "mypy>=1.8", "pre-commit>=3", "scikit-learn>=1.0"]
 
+[project.scripts]
+mutualvote = "mutualvote.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/mutualvote"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "src"]
+addopts = "--doctest-modules"
 
 [tool.ruff]
 line-length = 100
@@ -40,4 +44,8 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 module = ["scipy", "scipy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn", "sklearn.*"]
 ignore_missing_imports = true
