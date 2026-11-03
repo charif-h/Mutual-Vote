@@ -46,6 +46,20 @@ vector at n = 2,400). Memory grows about 4x per doubling of n, time about 5-6x.
   several minutes. This is an extrapolation, not a measurement. Real data with fewer
   neighbors per vector will use less.
 
+## Watching a run: `verbose=True`
+
+Verbose mode reports the stage and, while candidates are computed, the pairs found so far and
+a projected memory for the merge stage (`BYTES_PER_PAIR` = 360, measured at n = 2,400: 553,690
+pairs, 202 MB above baseline, about 364 bytes per pair). The projection extrapolates the pairs
+found so far to all rows, so it is an order-of-magnitude warning that shows up after the first
+few percent of rows, not a guarantee. If it is far above your free RAM, subsample the data
+or stop the run: the machine will start swapping and the merge stage will not finish in
+reasonable time.
+
+Large datasets such as MNIST (60,000-70,000 vectors) are far beyond the sizes measured
+above (the n^2 growth puts them in the hundreds of GB), so start from a subsample of 5,000 to
+10,000 rows.
+
 ## What was tried and rejected
 
 Capping the number of candidates per vector looked like an easy fix. On 10,000 vectors it

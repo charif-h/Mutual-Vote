@@ -35,6 +35,10 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
     chunk_size : int, default=1024
         Number of rows of the distance matrix computed at a time. Affects memory only,
         never the result.
+    verbose : bool, default=False
+        Report progress on stderr: distances and candidates, linking, merging, with the
+        candidate-pair count and projected memory. Uses ``tqdm`` if installed
+        (``pip install mutualvote[progress]``). Never changes the result.
 
     Attributes
     ----------
@@ -65,11 +69,13 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
         base_rate: float = 0.5,
         metric: str = "jaccard",
         chunk_size: int = 1024,
+        verbose: bool = False,
     ) -> None:
         self.hostility = hostility
         self.base_rate = base_rate
         self.metric = metric
         self.chunk_size = chunk_size
+        self.verbose = verbose
 
     def _check_params(self) -> None:
         for name in ("hostility", "base_rate"):
@@ -93,6 +99,7 @@ class MutualVote(ClusterMixin, BaseEstimator):  # type: ignore[misc]
             hostility=self.hostility,
             base_rate=self.base_rate,
             chunk_size=self.chunk_size,
+            verbose=bool(self.verbose),
         )
         self.n_clusters_ = int(self.labels_.max()) + 1 if self.labels_.size else 0
         if self.metric != "precomputed":

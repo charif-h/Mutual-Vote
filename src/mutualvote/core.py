@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import heapq
+import time
 from collections.abc import Sequence
 
 import numpy as np
 import numpy.typing as npt
 
+from ._progress import format_duration, progress, say
+
 IntArray = npt.NDArray[np.intp]
+
+#: Merges between two refreshes of the verbose cluster/heap counters.
+_INFO_EVERY = 256
 
 #: Non-informative prior weight of a fresh opinion (see ``mutualvote.opinion``).
 _PRIOR_W = 2.0
@@ -32,6 +38,7 @@ def merge_clusters(
     candidates: Sequence[dict[int, float]],
     hostility: float = 0.5,
     base_rate: float = 0.5,
+    verbose: bool = False,
 ) -> IntArray:
     """Cluster vectors from their candidate lists; return one label per vector.
 
@@ -48,6 +55,10 @@ def merge_clusters(
     :class:`mutualvote.opinion.Opinion` computed inline, because this loop dominates the
     running time. Ties are broken by cluster id. Labels are ``0..k-1`` numbered by smallest
     member index.
+
+    With ``verbose``, reports progress of the linking stage and of the merge loop (clusters
+    merged away so far, clusters alive, pending heap entries) on stderr; ``tqdm`` is used if
+    installed. The merge bar stops short of its total: the final cluster count is unknown.
     """
     _validate(candidates, hostility, base_rate)
     n = len(candidates)
@@ -67,11 +78,14 @@ def merge_clusters(
             return (0.0, lam, _PRIOR_W + one_minus_lam)
         return (c, 0.0, _PRIOR_W + (1.0 - c))
 
+    t0 = time.monotonic()
+    bar = progress(2 * n, "linking (rows)", verbose)
     for x in range(n):
         for y in candidates[x]:
             if y not in op[x]:
                 op[x][y] = interaction(x, y)
                 op[y][x] = interaction(y, x)
+        bar.update()
 
     heap: list[tuple[float, int, int]] = []
     for x in range(n):
@@ -82,13 +96,23 @@ def merge_clusters(
                 mean = (r1 + a * w1) / (r1 + s1 + w1) + (r2 + a * w2) / (r2 + s2 + w2) - 1.0
                 if mean >= 0.0:
                     heap.append((-mean, x, y))
+        bar.update()
     heapq.heapify(heap)
+    bar.close()
+    say(f"{len(heap):,} linked pairs with a positive mutual opinion to merge from", verbose)
 
     next_id = n
+    merges = 0
+    bar = progress(n, "merging (clusters merged away)", verbose)
     while heap:
         _, x, y = heapq.heappop(heap)
         if x not in members or y not in members:
             continue  # stale entry: one of the clusters was merged away
+        merges += 1
+        if verbose:
+            bar.update()
+            if merges % _INFO_EVERY == 0:
+                bar.set_info(f"{len(members) - 1:,} clusters, {len(heap):,} heap entries")
         z = next_id
         next_id += 1
         ox, oy = op[x], op[y]
@@ -128,6 +152,12 @@ def merge_clusters(
         merged.extend(members.pop(small))
         members[z] = merged
         del op[x], op[y]
+    bar.close()
+    say(
+        f"done: {len(members):,} clusters after {merges:,} merges "
+        f"in {format_duration(time.monotonic() - t0)}",
+        verbose,
+    )
 
     labels = np.empty(n, dtype=np.intp)
     for label, group in enumerate(sorted(members.values(), key=min)):

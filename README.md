@@ -41,6 +41,20 @@ mutualvote cluster purchases.csv -o labels.txt     # also .tsv, .npy, or sparse 
 
 For time and memory at 1k-10k vectors see [docs/scaling.md](docs/scaling.md).
 
+### Watching a long run
+
+Pass `verbose=True` (CLI: `-v`) to see progress on stderr: distances and candidates, linking,
+and merging, plus the number of candidate pairs and the memory the merge stage is projected to
+need. Install `tqdm` for progress bars that also work in notebooks
+(`pip install mutualvote[progress]`); without it, a status line is printed every few seconds.
+
+```python
+MutualVote(verbose=True).fit_predict(X)
+```
+
+The merge bar stops short of 100% because the final number of clusters is not known in
+advance. Verbose mode never changes the result.
+
 ## Development
 
 ```bash
