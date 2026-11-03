@@ -78,7 +78,10 @@ A cluster pair is *linked* if at least one member pair has a candidate entry in 
 direction. Each linked pair holds `(opinion X->Y, opinion Y->X)` and their average
 `avg = (score(X->Y) + score(Y->X)) / 2`. The list is ordered by `avg` descending.
 
-Initially every cluster is a single vector, so each opinion has one interaction.
+Initially every cluster is a single vector, so each opinion has one interaction. A single
+positive interaction with candidate score `c` gives shifted score `c / 3`; a single hostile
+one (`lambda = 0.5`) gives `-1/6`. Ordering and the stop test always use these shifted
+opinion scores (see decisions.md #8).
 
 ## Step 6: merging loop (Algorithm 1)
 
@@ -96,7 +99,8 @@ whose `avg` is negative are dropped from the list.
 
 ## Worked example (paper, Section 3.2): test vectors
 
-Initial list (`A->B`, `B->A`, avg):
+Initial list. The first two columns are the **candidate scores** `c` (not opinion scores;
+the paper's list mixes the two, see decisions.md #8), the last is their average:
 
 ```
 {A,B}: 1.0, 1.0, 1.0
@@ -112,7 +116,7 @@ Merge `[A]` and `[B]`:
 * `score([A,B],[D])`: `r = 0.9`, `s = 0.5` (A has no opinion of D),
   `w = 2 + 0.1 + 0.5 = 2.6`; total `4.0`; `b = 0.225`, `u = 0.65`; `Ex = 0.55`; `score = 0.1`.
 
-Resulting list entries: `({[A,B],[C]}: 0.425, 0.325, 0.375)` and
+After the merge, the entries are true shifted opinion scores (`A->B`, `B->A`, avg): `({[A,B],[C]}: 0.425, 0.325, 0.375)` and
 `({[A,B],[D]}: 0.100, 0.050, 0.075)`.
 
 ## Complexity note
