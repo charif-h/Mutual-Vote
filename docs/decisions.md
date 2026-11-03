@@ -47,3 +47,17 @@ a single negative interaction (eq. 7). Default `lambda = 0.5`, `a = 0.5`.
 The paper drops clusters with fewer than 5 users in its K-means experiments only.
 **Decision:** not part of Mutual Vote; provide as an optional utility in the evaluation
 module (issue #17).
+
+## 8. Initial list values are candidate scores
+In the worked example the initial list entries (1.0, 0.9, 0.8, ...) are used as `r`
+increments, i.e. they are candidate scores `c`, while entries after the merge (0.425,
+0.325, ...) are shifted opinion scores. Taken as opinion scores, a lone positive interaction
+could never reach 1.0 (it gives `c/3`).
+**Decision:** the algorithm orders pairs by the average *shifted opinion score*, also for
+the initial singleton pairs. For `c1, c2` both positive that is `(c1 + c2) / 6`, which ranks
+pairs exactly as the paper's example list does.
+
+## 9. Standard deviation
+The paper does not say population or sample. **Decision:** population std (`ddof=0`).
+A small absolute tolerance (1e-12) is applied in `d <= theta` so equal distances are not
+split by floating-point error.
