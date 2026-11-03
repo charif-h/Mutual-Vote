@@ -61,3 +61,26 @@ pairs exactly as the paper's example list does.
 The paper does not say population or sample. **Decision:** population std (`ddof=0`).
 A small absolute tolerance (1e-12) is applied in `d <= theta` so equal distances are not
 split by floating-point error.
+
+## 10. Empty rows (Jaccard)
+A row with no data is at distance 1 from everything, so its distance list has zero spread:
+every other vector becomes a full-score candidate and it would merge into clusters.
+**Decision:** `cluster(..., metric="jaccard")` sets empty rows aside as singleton clusters and
+clusters the remaining rows (distances are computed without the empty rows).
+
+## 11. Ties and row order
+The closest neighbor of every vector scores exactly 1, so disjoint mutually-closest pairs
+have exactly equal mean scores. Merging is greedy, so the order of tied merges can change
+the result. **Decision:** ties are broken by cluster id (creation order), which makes runs
+deterministic but means the output can depend on row order when exact ties occur. This is
+inherent to the algorithm as described; row-permutation invariance is only tested on
+tie-free candidate lists.
+
+## 12. Cluster count is expected to be large
+On the paper's dataset (~2400 users) Mutual Vote yields 53 clusters, about twice K-means'
+24, with 100% coverage (Table 6, Section 4.3). On synthetic data with 5 groups of differing
+density (750 vectors) this implementation gives 26-31 clusters and recovers dense groups
+cleanly while sparser groups split. Treating a missing link between two clusters as one
+hostile interaction (instead of one per member pair) gave 20-23 clusters, so the member-pair
+rule (#4) is not the main cause. **Decision:** keep #4; fragmentation is consistent with
+the paper's reported behaviour.
